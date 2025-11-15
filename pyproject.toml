@@ -3,10 +3,10 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "chroma-gui"
+name = "chroma-tui"
 version = "0.1.0"
 authors = [
-  { name="Your Name", email="you@example.com" },
+  { name="Thups Mukhunyeledzi", email="you@example.com" },
 ]
 description = "A TUI for ChromaDB"
 readme = "README.md"
@@ -18,8 +18,8 @@ classifiers = [
 ]
 dependencies = [
     "textual",
-    "chromadb-client",
+    "chromadb",
 ]
 
 [project.scripts]
-chroma-gui = "chroma_gui.main:run"
+chroma-tui = "chroma_tui.main:run"

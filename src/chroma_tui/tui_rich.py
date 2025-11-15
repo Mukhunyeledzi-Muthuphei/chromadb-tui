@@ -1,4 +1,4 @@
-# src/chroma_gui/tui_rich.py
+# src/chroma_tui/tui_rich.py
 
 import chromadb
 import json
@@ -6,12 +6,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich.table import Table
-from rich.layout import Layout
 from rich.text import Text
-from rich.live import Live
 from rich import box
-import time
-import sys
 
 
 class ChromaTUI:
@@ -186,8 +182,9 @@ class ChromaTUI:
             "[1] View Collections\n"
             "[2] Create Collection\n" 
             "[3] Delete Collection\n"
-            "[4] Search Documents\n"
-            "[5] Add Document\n"
+            "[4] View Document\n"
+            "[5] Search Documents\n"
+            "[6] Add Document\n"
             "[0] Exit",
             title="Main Menu",
             box=box.ROUNDED,
@@ -216,7 +213,7 @@ class ChromaTUI:
                 self.show_title()
                 self.show_main_menu()
                 
-                choice = Prompt.ask("Choose an option", choices=["0", "1", "2", "3", "4", "5"])
+                choice = Prompt.ask("Choose an option", choices=["0", "1", "2", "3", "4", "5", "6"])
                 
                 if choice == "0":
                     self.console.print("[yellow]Goodbye![/yellow]")
@@ -234,9 +231,12 @@ class ChromaTUI:
                     self.delete_collection()
                     Prompt.ask("Press Enter to continue")
                 elif choice == "4":
-                    self.search_documents()
+                    self.view_document()
                     Prompt.ask("Press Enter to continue")
                 elif choice == "5":
+                    self.search_documents()
+                    Prompt.ask("Press Enter to continue")
+                elif choice == "6":
                     self.add_document()
                     Prompt.ask("Press Enter to continue")
 
@@ -373,6 +373,144 @@ class ChromaTUI:
         except Exception as e:
             self.console.print(f"[red]Failed to add document: {str(e)}[/red]")
             
+    def view_document(self):
+        """View a complete document with all its details."""
+        self.clear_screen()
+        self.show_title()
+        
+        if not self.collections:
+            self.console.print("[yellow]No collections available.[/yellow]")
+            return
+            
+        self.console.print("[bold]View Document[/bold]", style="blue")
+        self.console.print()
+        
+        # Show available collections
+        self.console.print("Available collections:")
+        for i, col in enumerate(self.collections, 1):
+            self.console.print(f"{i}. {col['name']} ({col['count']} documents)")
+        self.console.print()
+        
+        collection_name = Prompt.ask("Collection name")
+        if not collection_name:
+            return
+            
+        # Find the collection
+        collection_info = None
+        for col in self.collections:
+            if col["name"] == collection_name:
+                collection_info = col
+                break
+                
+        if not collection_info:
+            self.console.print(f"[red]Collection '{collection_name}' not found.[/red]")
+            return
+            
+        collection = collection_info["collection"]
+        
+        # Show documents in the collection to help user pick
+        self.console.print()
+        try:
+            result = collection.peek(limit=20)  # Show up to 20 documents
+            
+            if result['ids']:
+                docs_table = Table(title=f"Documents in '{collection_name}'", box=box.ROUNDED)
+                docs_table.add_column("ID", style="cyan", width=15)
+                docs_table.add_column("Document Preview", style="white", width=60)
+                
+                for i, doc_id in enumerate(result['ids']):
+                    document = result['documents'][i] if i < len(result['documents']) else ""
+                    doc_preview = str(document)[:57] + "..." if len(str(document)) > 60 else str(document)
+                    docs_table.add_row(str(doc_id), doc_preview)
+                    
+                self.console.print(docs_table)
+                self.console.print()
+        except Exception as e:
+            self.console.print(f"[yellow]Could not load documents preview: {str(e)}[/yellow]")
+            self.console.print()
+        
+        doc_id = Prompt.ask("Document ID")
+        if not doc_id:
+            return
+            
+        show_embedding = Confirm.ask("Show embedding vector?", default=False)
+        
+        try:
+            # Get the specific document
+            result = collection.get(
+                ids=[doc_id],
+                include=["documents", "metadatas", "embeddings"] if show_embedding else ["documents", "metadatas"]
+            )
+            
+            if not result['ids']:
+                self.console.print(f"[red]Document '{doc_id}' not found.[/red]")
+                return
+                
+            self.console.print()
+            self.console.print(Panel(f"[bold cyan]Document ID: {doc_id}[/bold cyan]", box=box.ROUNDED))
+            self.console.print()
+            
+            # Display document text
+            document = result['documents'][0] if result['documents'] else "N/A"
+            self.console.print(Panel(
+                Text(str(document), style="white"),
+                title="[bold]Document Text[/bold]",
+                box=box.ROUNDED,
+                style="green"
+            ))
+            self.console.print()
+            
+            # Display metadata
+            metadata = result['metadatas'][0] if result['metadatas'] else {}
+            metadata_json = json.dumps(metadata, indent=2) if metadata else "{}"
+            self.console.print(Panel(
+                Text(metadata_json, style="yellow"),
+                title="[bold]Metadata[/bold]",
+                box=box.ROUNDED,
+                style="blue"
+            ))
+            self.console.print()
+            
+            # Display embedding if requested
+            if show_embedding:
+                embeddings_data = result.get('embeddings')
+                if embeddings_data is not None and len(embeddings_data) > 0:
+                    embedding = embeddings_data[0]
+                    if embedding is not None and len(embedding) > 0:
+                        # Show embedding stats
+                        import numpy as np
+                        emb_array = np.array(embedding)
+                        stats = f"Dimension: {len(embedding)}\n"
+                        stats += f"Min: {emb_array.min():.6f}\n"
+                        stats += f"Max: {emb_array.max():.6f}\n"
+                        stats += f"Mean: {emb_array.mean():.6f}\n"
+                        stats += f"Std: {emb_array.std():.6f}\n\n"
+                        
+                        # Show first 10 and last 10 values
+                        if len(embedding) > 20:
+                            stats += f"First 10 values: {embedding[:10]}\n"
+                            stats += "...\n"
+                            stats += f"Last 10 values: {embedding[-10:]}\n"
+                        else:
+                            stats += f"Values: {embedding}"
+                        
+                        self.console.print(Panel(
+                            Text(stats, style="magenta"),
+                            title="[bold]Embedding Vector[/bold]",
+                            box=box.ROUNDED,
+                            style="magenta"
+                        ))
+                        self.console.print()
+                    else:
+                        self.console.print("[yellow]No embedding available for this document.[/yellow]")
+                        self.console.print()
+                else:
+                    self.console.print("[yellow]No embedding available for this document.[/yellow]")
+                    self.console.print()
+            
+        except Exception as e:
+            self.console.print(f"[red]Failed to retrieve document: {str(e)}[/red]")
+    
     def search_documents(self):
         """Search documents in a collection."""
         self.clear_screen()
