@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "chroma-tui"
 version = "0.1.0"
 authors = [
-  { name="Thups Mukhunyeledzi", email="you@example.com" },
+  { name="Thups Mukhunyeledzi", email="muthupheimukhunyeledzi@gmail.com" },
 ]
 description = "A TUI for ChromaDB"
 readme = "README.md"
