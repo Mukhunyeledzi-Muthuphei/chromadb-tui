@@ -1,0 +1,2 @@
+[console_scripts]
+chroma-gui = chroma_gui.main:run
